@@ -36,7 +36,7 @@ class GoogleChatNotify(_PluginBase):
 
     @eventmanager.register(EventType.NoticeMessage)
     def send(self, event: Event):
-        """监听系统通知"""
+        """监听系统通知并转发"""
         if not self.get_state():
             return
 
@@ -44,24 +44,28 @@ class GoogleChatNotify(_PluginBase):
         if not msg_body or msg_body.get("channel"):
             return
 
+        # 消息类型过滤
         msg_type: NotificationType = msg_body.get("type")
         if msg_type and self._msgtypes and msg_type.name not in self._msgtypes:
             return
 
-        return self._do_send(
-            title=msg_body.get("title"),
-            text=msg_body.get("text"),
-            image_url=msg_body.get("image")
-        )
+        title = msg_body.get("title")
+        text = msg_body.get("text")
+        image = msg_body.get("image")  # 获取通知中的图片链接
+        
+        return self._do_send(title=title, text=text, image_url=image)
 
     def _do_send(self, title: str, text: str, image_url: str = None) -> schemas.Response:
-        """核心发送逻辑：原生组件布局"""
+        """核心发送逻辑：图片在上，文字在下"""
         try:
+            if not self._google_chat_url:
+                return schemas.Response(success=False, message="未配置 Webhook URL")
+
             if image_url:
-                # 使用 Google Chat 卡片 V2 布局：图片 section 在上，文字 section 在下
+                # 使用 Cards V2 确保布局：图片 section 在上，文字 section 在下
                 payload = {
                     "cardsV2": [{
-                        "cardId": "mp_notify",
+                        "cardId": "moviepilot_notification",
                         "card": {
                             "header": {
                                 "title": title,
@@ -71,16 +75,11 @@ class GoogleChatNotify(_PluginBase):
                             },
                             "sections": [
                                 {
-                                    # 图片部分
-                                    "widgets": [{
-                                        "image": {
-                                            "imageUrl": image_url,
-                                            "altText": "Poster"
-                                        }
-                                    }]
+                                    # 布局：图片在上
+                                    "widgets": [{"image": {"imageUrl": image_url}}]
                                 },
                                 {
-                                    # 文字部分
+                                    # 布局：文字在下
                                     "widgets": [{
                                         "textParagraph": {
                                             "text": f"<b>{title}</b><br><br>{text.replace('\n', '<br>')}"
@@ -96,33 +95,36 @@ class GoogleChatNotify(_PluginBase):
                 payload = {"text": f"*{title}*\n{text}"}
 
             headers = {"Content-Type": "application/json; charset=UTF-8"}
-            res = requests.post(self._google_chat_url, headers=headers, data=json.dumps(payload), timeout=10)
+            res = requests.post(
+                self._google_chat_url, 
+                headers=headers, 
+                data=json.dumps(payload), 
+                timeout=10
+            )
             
             if res.status_code == 200:
                 return schemas.Response(success=True, message="发送成功")
             return schemas.Response(success=False, message=f"HTTP {res.status_code}")
         except Exception as e:
-            logger.error(f"[GoogleChat] 发送失败: {str(e)}")
+            logger.error(f"[{self.plugin_name}] 发送失败: {str(e)}")
             return schemas.Response(success=False, message=str(e))
 
     def test(self, **kwargs) -> schemas.Response:
-        """按钮点击触发的测试方法"""
-        if not self._google_chat_url:
-            return schemas.Response(success=False, message="请先配置 Webhook URL")
+        """测试按钮点击后调用的方法"""
         return self._do_send(
-            title="Google Chat 测试通知",
-            text="✅ 恭喜！独立按钮测试成功。\n当前布局：图片在上，文字在下。",
+            title="独立按钮测试通知",
+            text="✅ 恭喜！测试按钮运行正常。\n当前布局：图片在上，文字在下，尺寸已优化。",
             image_url="https://raw.githubusercontent.com/Cutephunny/MoviePilot-Plugins/main/icons/Google_A.png"
         )
 
     def get_command(self) -> List[Dict[str, Any]]:
-        """定义卡片上的独立测试按钮"""
+        """定义插件卡片上的独立按钮"""
         return [
             {
                 "id": "test",
-                "title": "测试发送",
-                "description": "发送一条测试通知到 Google Chat",
-                "display": "button", # 显示为按钮
+                "title": "发送测试通知",
+                "description": "点击发送一条测试消息到 Google Chat",
+                "display": "button",
                 "color": "primary"
             }
         ]
@@ -148,7 +150,7 @@ class GoogleChatNotify(_PluginBase):
                         'component': 'VRow',
                         'content': [
                             {'component': 'VCol', 'props': {'cols': 12}, 'content': [
-                                {'component': 'VTextField', 'props': {'model': 'google_chat_url', 'label': 'Webhook URL', 'placeholder': 'https://chat.googleapis.com/...'}}
+                                {'component': 'VTextField', 'props': {'model': 'google_chat_url', 'label': 'Webhook URL'}}
                             ]}
                         ]
                     },
@@ -169,6 +171,7 @@ class GoogleChatNotify(_PluginBase):
         }
 
     def get_page(self) -> List[dict]:
+        """必须返回空列表，否则插件可能无法显示"""
         return []
 
     def stop_service(self):
