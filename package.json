@@ -3,7 +3,7 @@
     "name": "GoogleChat通知插件",
     "description": "发送消息通知到GoogleChat。",
     "labels": "消息通知",
-    "version": "1.7",
+    "version": "1.8",
     "icon": "Google_A.png",
     "author": "Gemini",
     "level": 1,
