@@ -7,10 +7,10 @@ from app import schemas
 
 class GoogleChatNotify(_PluginBase):
     # 插件元数据（必须与你的 manifest.json 一致）
-    plugin_name = "Google Chat 通知"
+    plugin_name = "GoogleChat通知插件"
     plugin_desc = "接收 Webhook 信号并转发至 Google Chat。"
     plugin_icon = "https://raw.githubusercontent.com/Cutephunny/MoviePilot-Plugins/main/icons/Google_A.png"
-    plugin_version = "1.3"
+    plugin_version = "1.2"
     plugin_author = "Gemini"
     author_url = "https://github.com"
     
