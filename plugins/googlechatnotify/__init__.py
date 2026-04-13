@@ -12,7 +12,7 @@ class GoogleChatNotify(_PluginBase):
     plugin_name = "GoogleChat通知插件"
     plugin_desc = "接收消息通知并转发至 Google Chat。"
     plugin_icon = "https://raw.githubusercontent.com/Cutephunny/MoviePilot-Plugins/main/icons/Google_A.png"
-    plugin_version = "1.8"
+    plugin_version = "1.5"
     plugin_author = "Gemini"
     author_url = "https://github.com"
     
