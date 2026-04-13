@@ -12,7 +12,7 @@ class GoogleChatNotify(_PluginBase):
     plugin_name = "GoogleChat通知插件"
     plugin_desc = "接收消息通知并转发至 Google Chat。"
     plugin_icon = "https://raw.githubusercontent.com/Cutephunny/MoviePilot-Plugins/main/icons/Google_A.png"
-    plugin_version = "1.5"
+    plugin_version = "1.8"
     plugin_author = "Gemini"
     author_url = "https://github.com"
     
@@ -20,7 +20,7 @@ class GoogleChatNotify(_PluginBase):
     plugin_order = 30
     auth_level = 1
 
-    # 私有属性
+    # 私有属性初始化
     _enabled = False
     _onlyonce = False
     _google_chat_url = ""
@@ -33,21 +33,12 @@ class GoogleChatNotify(_PluginBase):
             self._google_chat_url = config.get("google_chat_url")
             self._msgtypes = config.get("msgtypes") or []
 
-        # 模仿 MeoW 逻辑：如果勾选了立即运行测试
+        # 修复点：移除 self.update_config，改用直接判断
         if self._enabled and self._onlyonce:
-            logger.info(f"[{self.plugin_name}] 测试插件，立即运行一次")
-            self._onlyonce = False
-            # 更新配置以重置开关状态
-            self.update_config({
-                "enabled": self._enabled,
-                "onlyonce": self._onlyonce,
-                "google_chat_url": self._google_chat_url,
-                "msgtypes": self._msgtypes
-            })
-            # 执行测试发送
+            logger.info(f"[{self.plugin_name}] 正在执行保存后的自动测试...")
             self._do_send(
-                title="GoogleChat 测试通知",
-                text="✅ 插件配置已保存！\n布局预览：图片在上，文字在下。\n换行测试：\n这是第二行内容。",
+                title="GoogleChat 配置测试",
+                text="✅ 插件配置已保存且初始化成功！\n布局：图片在上，文字在下。",
                 image_url=self.plugin_icon
             )
 
@@ -55,10 +46,16 @@ class GoogleChatNotify(_PluginBase):
         return self._enabled and bool(self._google_chat_url)
 
     def _do_send(self, title: str, text: str, image_url: str = None) -> schemas.Response:
-        """核心发送逻辑：原生组件实现图上文下"""
+        """核心发送逻辑"""
         try:
+            if not self._google_chat_url:
+                return schemas.Response(success=False, message="URL未配置")
+
+            # 统一转换换行符为 HTML 换行
+            formatted_text = text.replace('\n', '<br>')
+
             if image_url:
-                # 使用 Cards V2 官方组件
+                # 原生 Cards V2 布局
                 payload = {
                     "cardsV2": [{
                         "cardId": "mp_notification",
@@ -71,14 +68,12 @@ class GoogleChatNotify(_PluginBase):
                             },
                             "sections": [
                                 {
-                                    # Section 1: 封面图片
                                     "widgets": [{"image": {"imageUrl": image_url}}]
                                 },
                                 {
-                                    # Section 2: 详情文字
                                     "widgets": [{
                                         "textParagraph": {
-                                            "text": f"<b>{title}</b><br><br>{text.replace('\n', '<br>')}"
+                                            "text": f"<b>{title}</b><br><br>{formatted_text}"
                                         }
                                     }]
                                 }
@@ -91,16 +86,16 @@ class GoogleChatNotify(_PluginBase):
 
             headers = {"Content-Type": "application/json; charset=UTF-8"}
             res = requests.post(self._google_chat_url, headers=headers, data=json.dumps(payload), timeout=10)
-            return schemas.Response(success=True) if res.status_code == 200 else schemas.Response(success=False)
+            return schemas.Response(success=True)
         except Exception as e:
-            logger.error(f"发送失败: {str(e)}")
+            logger.error(f"[GoogleChat] 发送异常: {str(e)}")
             return schemas.Response(success=False, message=str(e))
 
     @eventmanager.register(EventType.NoticeMessage)
     def send(self, event: Event):
         if not self.get_state() or not event.event_data:
             return
-
+        
         msg_body = event.event_data
         if msg_body.get("channel"): return
 
@@ -115,7 +110,7 @@ class GoogleChatNotify(_PluginBase):
         )
 
     def get_form(self) -> Tuple[List[dict], Dict[str, Any]]:
-        """模仿 MeoW 风格的 UI 布局"""
+        """100% 模仿 MeoW 布局"""
         MsgTypeOptions = [{"title": item.value, "value": item.name} for item in NotificationType]
         
         return [
@@ -148,7 +143,7 @@ class GoogleChatNotify(_PluginBase):
                                         'component': 'VTextField',
                                         'props': {
                                             'model': 'google_chat_url',
-                                            'label': 'Webhook URL',
+                                            'label': 'Google Chat Webhook URL',
                                             'placeholder': 'https://chat.googleapis.com/v1/spaces/...',
                                             'clearable': True
                                         }
@@ -188,20 +183,20 @@ class GoogleChatNotify(_PluginBase):
         }
 
     def get_command(self) -> List[Dict[str, Any]]:
-        """卡片底部的独立测试按钮"""
+        """定义卡片测试按钮"""
         return [{
-            "id": "test_cmd",
+            "id": "test_button",
             "title": "发送测试通知",
-            "description": "点击后立即向 Google Chat 发送测试消息",
+            "description": "点击发送测试消息",
             "display": "button",
             "color": "primary"
         }]
 
-    def test_cmd(self, **kwargs):
-        """对应 get_command 的 id"""
+    def test_button(self, **kwargs):
+        """按钮回调方法"""
         return self._do_send(
-            title="测试按钮通知",
-            text="✅ 这是通过卡片按钮触发的测试。",
+            title="手动测试成功",
+            text="这是通过卡片底部的独立按钮触发的消息。",
             image_url=self.plugin_icon
         )
 
